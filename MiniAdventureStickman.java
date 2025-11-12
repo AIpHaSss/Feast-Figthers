@@ -37,6 +37,9 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private boolean wPressed, sPressed, aPressed, dPressed;
 
+    private int timeLeft = 120;
+    private long lastTimeCheck = System.currentTimeMillis();
+
     public MiniAdventureStickman() {
         setFocusable(true);
         setBackground(Color.BLACK);
@@ -46,9 +49,9 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
 
         try {
             backgroundImage = ImageIO.read(new File("background.jpg"));
-            System.out.println("✅ Background loaded successfully!");
+            System.out.println("Background loaded successfully!");
         } catch (IOException ex) {
-            System.out.println("⚠️ Background image not found: " + ex.getMessage());
+            System.out.println("Background image not found: " + ex.getMessage());
         }
 
         addComponentListener(new ComponentAdapter() {
@@ -96,50 +99,63 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         Graphics2D g2 = (Graphics2D) g;
 
         if (!gameOver) {
-            // Draw item
+
             g2.setColor(Color.YELLOW);
             g2.fillOval(itemX, itemY, ITEM_SIZE, ITEM_SIZE);
 
-            // Draw enemies
+
             g2.setColor(Color.RED);
             for (int i = 0; i < enemyCount; i++) {
                 g2.fillRect(enemyX[i], enemyY[i], ENEMY_SIZE, ENEMY_SIZE);
             }
 
-            // Draw players as circles (Blue & Pink)
-            drawPlayerCircle(g2, player1X, player1Y, player1Size, Color.BLUE);   // Player 1: Blue
-            drawPlayerCircle(g2, player2X, player2Y, player2Size, Color.PINK);   // Player 2: Pink
+            drawPlayerCircle(g2, player1X, player1Y, player1Size, Color.BLUE);
+            drawPlayerCircle(g2, player2X, player2Y, player2Size, Color.PINK);
 
-            // Scores
             g2.setColor(Color.WHITE);
             g2.setFont(new Font("Arial", Font.BOLD, 18));
             g2.drawString("P1 Score: " + score1, 20, 40);
             g2.drawString("P2 Score: " + score2, getWidth() - 180, 40);
 
-            // Start message
+
+            g2.drawString("Time Left: " + timeLeft + "s", getWidth() / 2 - 50, 40);
+
             if (!gameStarted) {
                 g2.setFont(new Font("Arial", Font.BOLD, 32));
                 g2.drawString("Press any key to start!", getWidth() / 2 - 200, getHeight() / 2);
             }
         } else {
-            // Game Over screen
             g2.setColor(Color.WHITE);
             g2.setFont(new Font("Arial", Font.BOLD, 48));
-            g2.drawString("GAME OVER", getWidth() / 2 - 150, getHeight() / 2 - 50);
+            g2.drawString("GAME OVER", getWidth() / 2 - 150, getHeight() / 2 - 100);
             g2.setFont(new Font("Arial", Font.PLAIN, 28));
+
+            if (timeLeft <= 0) {
+                g2.drawString("⏰ Time's Up!", getWidth() / 2 - 100, getHeight() / 2 - 50);
+
+                String winnerText;
+                if (score1 > score2) {
+                    winnerText = "Player 1 wins!";
+                } else if (score2 > score1) {
+                    winnerText = "Player 2 wins!";
+                } else {
+                    winnerText = "It's a tie!";
+                }
+                g2.drawString(winnerText, getWidth() / 2 - 100, getHeight() / 2 + 80);
+            }
+
             g2.drawString("P1 Final Score: " + score1, getWidth() / 2 - 150, getHeight() / 2);
             g2.drawString("P2 Final Score: " + score2, getWidth() / 2 - 150, getHeight() / 2 + 40);
-            g2.drawString("Press R to Restart", getWidth() / 2 - 150, getHeight() / 2 + 80);
+            g2.drawString("Press R to Restart", getWidth() / 2 - 150, getHeight() / 2 + 120);
         }
     }
 
-    // ✅ Simplified player drawing as a circle
     private void drawPlayerCircle(Graphics2D g2, int x, int y, int size, Color color) {
         g2.setColor(color);
         g2.fillOval(x, y, size, size);
         g2.setColor(Color.WHITE);
         g2.setStroke(new BasicStroke(2));
-        g2.drawOval(x, y, size, size); // outline for better visibility
+        g2.drawOval(x, y, size, size);
     }
 
     @Override
@@ -147,7 +163,18 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         if (!initialized || gameOver) return;
 
         if (gameStarted) {
-            // Move enemies
+            long now = System.currentTimeMillis();
+            if (now - lastTimeCheck >= 1000) {
+                timeLeft--;
+                lastTimeCheck = now;
+                if (timeLeft <= 0) {
+                    gameOver = true;
+                    timer.stop();
+                }
+            }
+        }
+
+        if (gameStarted) {
             for (int i = 0; i < enemyCount; i++) {
                 enemyX[i] += enemySpeedX[i];
                 enemyY[i] += enemySpeedY[i];
@@ -157,20 +184,16 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
                     enemySpeedY[i] = -enemySpeedY[i];
             }
 
-            // Player movement
             int moveSpeed = 8;
-
             if (upPressed && player1Y > 0) player1Y -= moveSpeed;
             if (downPressed && player1Y < getHeight() - player1Size) player1Y += moveSpeed;
             if (leftPressed && player1X > 0) player1X -= moveSpeed;
             if (rightPressed && player1X < getWidth() - player1Size) player1X += moveSpeed;
-
             if (wPressed && player2Y > 0) player2Y -= moveSpeed;
             if (sPressed && player2Y < getHeight() - player2Size) player2Y += moveSpeed;
             if (aPressed && player2X > 0) player2X -= moveSpeed;
             if (dPressed && player2X < getWidth() - player2Size) player2X += moveSpeed;
 
-            // Prevent overlap
             Rectangle p1Rect = new Rectangle(player1X, player1Y, player1Size, player1Size);
             Rectangle p2Rect = new Rectangle(player2X, player2Y, player2Size, player2Size);
 
@@ -200,7 +223,6 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
             }
         }
 
-        // Item collection & enemy collision
         Rectangle itemRect = new Rectangle(itemX, itemY, ITEM_SIZE, ITEM_SIZE);
         Rectangle p1Rect = new Rectangle(player1X, player1Y, player1Size, player1Size);
         Rectangle p2Rect = new Rectangle(player2X, player2Y, player2Size, player2Size);
@@ -246,15 +268,18 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         int angle = rand.nextInt(360);
         enemyX[enemyCount] = centerX + (int) (Math.cos(Math.toRadians(angle)) * distance);
         enemyY[enemyCount] = centerY + (int) (Math.sin(Math.toRadians(angle)) * distance);
-        enemySpeedX[enemyCount] = rand.nextInt(3) + 1;
-        enemySpeedY[enemyCount] = rand.nextInt(3) + 1;
+        enemySpeedX[enemyCount] = rand.nextInt(3) + 1 + 3; 
+        enemySpeedY[enemyCount] = rand.nextInt(3) + 1 + 3;
         enemyCount++;
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
-        if (!gameStarted && !gameOver) gameStarted = true;
+        if (!gameStarted && !gameOver) {
+            gameStarted = true;
+            lastTimeCheck = System.currentTimeMillis();
+        }
 
         if (!gameOver) {
             if (code == KeyEvent.VK_UP) upPressed = true;
@@ -295,6 +320,8 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         enemyCount = 3;
         gameOver = false;
         gameStarted = false;
+        timeLeft = 120;
+        lastTimeCheck = System.currentTimeMillis();
         centerObjects();
         timer.start();
         repaint();
