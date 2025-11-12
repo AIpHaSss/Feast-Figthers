@@ -45,7 +45,7 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         timer.start();
 
         try {
-            backgroundImage = ImageIO.read(new File("BackGround.jpg"));
+            backgroundImage = ImageIO.read(new File("background.jpg"));
             System.out.println("✅ Background loaded successfully!");
         } catch (IOException ex) {
             System.out.println("⚠️ Background image not found: " + ex.getMessage());
@@ -96,27 +96,33 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         Graphics2D g2 = (Graphics2D) g;
 
         if (!gameOver) {
+            // Draw item
             g2.setColor(Color.YELLOW);
             g2.fillOval(itemX, itemY, ITEM_SIZE, ITEM_SIZE);
 
+            // Draw enemies
             g2.setColor(Color.RED);
             for (int i = 0; i < enemyCount; i++) {
                 g2.fillRect(enemyX[i], enemyY[i], ENEMY_SIZE, ENEMY_SIZE);
             }
 
-            drawStickman(g2, player1X, player1Y, player1Size, Color.CYAN);
-            drawStickman(g2, player2X, player2Y, player2Size, Color.MAGENTA);
+            // Draw players as circles (Blue & Pink)
+            drawPlayerCircle(g2, player1X, player1Y, player1Size, Color.BLUE);   // Player 1: Blue
+            drawPlayerCircle(g2, player2X, player2Y, player2Size, Color.PINK);   // Player 2: Pink
 
+            // Scores
             g2.setColor(Color.WHITE);
             g2.setFont(new Font("Arial", Font.BOLD, 18));
             g2.drawString("P1 Score: " + score1, 20, 40);
             g2.drawString("P2 Score: " + score2, getWidth() - 180, 40);
 
+            // Start message
             if (!gameStarted) {
                 g2.setFont(new Font("Arial", Font.BOLD, 32));
                 g2.drawString("Press any key to start!", getWidth() / 2 - 200, getHeight() / 2);
             }
         } else {
+            // Game Over screen
             g2.setColor(Color.WHITE);
             g2.setFont(new Font("Arial", Font.BOLD, 48));
             g2.drawString("GAME OVER", getWidth() / 2 - 150, getHeight() / 2 - 50);
@@ -127,29 +133,13 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         }
     }
 
-    private void drawStickman(Graphics2D g2, int x, int y, int size, Color color) {
-        g2.setStroke(new BasicStroke(3));
+    // ✅ Simplified player drawing as a circle
+    private void drawPlayerCircle(Graphics2D g2, int x, int y, int size, Color color) {
         g2.setColor(color);
-
-        int headSize = size / 3;
-        int bodyHeight = size / 2;
-        int armLength = size / 3;
-        int legLength = size / 2;
-
-        g2.drawOval(x, y, headSize, headSize);
-        int bodyX = x + headSize / 2;
-        int bodyYStart = y + headSize;
-        int bodyYEnd = bodyYStart + bodyHeight;
-
-        g2.drawLine(bodyX, bodyYStart, bodyX, bodyYEnd);
-        g2.drawLine(bodyX, bodyYStart + 10, bodyX - armLength, bodyYStart + 20);
-        g2.drawLine(bodyX, bodyYStart + 10, bodyX + armLength, bodyYStart + 20);
-        g2.drawLine(bodyX, bodyYEnd, bodyX - armLength, bodyYEnd + legLength);
-        g2.drawLine(bodyX, bodyYEnd, bodyX + armLength, bodyYEnd + legLength);
-
-        g2.setColor(Color.RED);
-        g2.fillRect(bodyX - armLength - 2, bodyYEnd + legLength, 6, 4);
-        g2.fillRect(bodyX + armLength - 4, bodyYEnd + legLength, 6, 4);
+        g2.fillOval(x, y, size, size);
+        g2.setColor(Color.WHITE);
+        g2.setStroke(new BasicStroke(2));
+        g2.drawOval(x, y, size, size); // outline for better visibility
     }
 
     @Override
@@ -157,6 +147,7 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         if (!initialized || gameOver) return;
 
         if (gameStarted) {
+            // Move enemies
             for (int i = 0; i < enemyCount; i++) {
                 enemyX[i] += enemySpeedX[i];
                 enemyY[i] += enemySpeedY[i];
@@ -166,12 +157,8 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
                     enemySpeedY[i] = -enemySpeedY[i];
             }
 
-            // ✅ Handle simultaneous movement
+            // Player movement
             int moveSpeed = 8;
-
-            // Save old positions
-            int oldP1X = player1X, oldP1Y = player1Y;
-            int oldP2X = player2X, oldP2Y = player2Y;
 
             if (upPressed && player1Y > 0) player1Y -= moveSpeed;
             if (downPressed && player1Y < getHeight() - player1Size) player1Y += moveSpeed;
@@ -183,12 +170,11 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
             if (aPressed && player2X > 0) player2X -= moveSpeed;
             if (dPressed && player2X < getWidth() - player2Size) player2X += moveSpeed;
 
-            // ✅ Prevent overlap
+            // Prevent overlap
             Rectangle p1Rect = new Rectangle(player1X, player1Y, player1Size, player1Size);
             Rectangle p2Rect = new Rectangle(player2X, player2Y, player2Size, player2Size);
 
             if (p1Rect.intersects(p2Rect)) {
-                // Push them apart equally
                 int overlapX = Math.min(player1X + player1Size, player2X + player2Size)
                              - Math.max(player1X, player2X);
                 int overlapY = Math.min(player1Y + player1Size, player2Y + player2Size)
@@ -214,6 +200,7 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
             }
         }
 
+        // Item collection & enemy collision
         Rectangle itemRect = new Rectangle(itemX, itemY, ITEM_SIZE, ITEM_SIZE);
         Rectangle p1Rect = new Rectangle(player1X, player1Y, player1Size, player1Size);
         Rectangle p2Rect = new Rectangle(player2X, player2Y, player2Size, player2Size);
@@ -314,7 +301,7 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
     }
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("Mini Adventure Stickman");
+        JFrame frame = new JFrame("Mini Adventure Circles");
         MiniAdventureStickman game = new MiniAdventureStickman();
         frame.add(game);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
