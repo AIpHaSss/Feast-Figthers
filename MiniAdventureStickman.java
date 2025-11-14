@@ -6,7 +6,7 @@ import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 
-public class MiniAdventureStickman extends JPanel implements ActionListener, KeyListener {
+public class MiniAdventureStickman extends JPanel implements ActionListener, KeyListener, MouseListener {
 
     private int player1X, player1Y;
     private int player2X, player2Y;
@@ -15,6 +15,8 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
     private boolean gameOver = false;
     private boolean gameStarted = false;
     private boolean initialized = false;
+
+    private boolean paused = false;
 
     private int enemyCount = 3;
     private final int MAX_ENEMIES = 50;
@@ -40,10 +42,23 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
     private int timeLeft = 120;
     private long lastTimeCheck = System.currentTimeMillis();
 
+    private Rectangle pauseButton = new Rectangle(20, 20, 80, 35);
+
+    private int starX, starY;
+    private final int STAR_SIZE = 22;
+    private boolean starActive = false;
+
+    private int p1SpeedBoost = 0;
+    private int p2SpeedBoost = 0;
+    private long p1BoostEnd = 0;
+    private long p2BoostEnd = 0;
+    private int lastMilestone = 0;
+
     public MiniAdventureStickman() {
         setFocusable(true);
         setBackground(Color.BLACK);
         addKeyListener(this);
+        addMouseListener(this);
         timer = new Timer(30, this);
         timer.start();
 
@@ -60,6 +75,7 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
                 if (!initialized && getWidth() > 0 && getHeight() > 0) {
                     centerObjects();
                     initialized = true;
+
                 }
             }
         });
@@ -80,11 +96,12 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         for (int i = 0; i < enemyCount; i++) {
             int distance = 200 + rand.nextInt(200);
             int angle = rand.nextInt(360);
-            enemyX[i] = centerX + (int) (Math.cos(Math.toRadians(angle)) * distance);
-            enemyY[i] = centerY + (int) (Math.sin(Math.toRadians(angle)) * distance);
+            enemyX[i] = centerX + (int)(Math.cos(Math.toRadians(angle)) * distance);
+            enemyY[i] = centerY + (int)(Math.sin(Math.toRadians(angle)) * distance);
             enemySpeedX[i] = rand.nextInt(3) + 1;
             enemySpeedY[i] = rand.nextInt(3) + 1;
         }
+
     }
 
     @Override
@@ -98,11 +115,23 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
 
         Graphics2D g2 = (Graphics2D) g;
 
+        g2.setColor(Color.DARK_GRAY);
+        g2.fillRect(pauseButton.x, pauseButton.y, pauseButton.width, pauseButton.height);
+        g2.setColor(Color.WHITE);
+        g2.drawRect(pauseButton.x, pauseButton.y, pauseButton.width, pauseButton.height);
+        g2.drawString(paused ? "Resume" : "Pause", pauseButton.x + 10, pauseButton.y + 23);
+
         if (!gameOver) {
 
             g2.setColor(Color.YELLOW);
             g2.fillOval(itemX, itemY, ITEM_SIZE, ITEM_SIZE);
 
+            if (starActive) {
+                g2.setColor(Color.BLACK);
+                g2.fillOval(starX, starY, STAR_SIZE, STAR_SIZE);
+                g2.setColor(Color.WHITE);
+                g2.drawOval(starX, starY, STAR_SIZE, STAR_SIZE);
+            }
 
             g2.setColor(Color.RED);
             for (int i = 0; i < enemyCount; i++) {
@@ -114,11 +143,16 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
 
             g2.setColor(Color.WHITE);
             g2.setFont(new Font("Arial", Font.BOLD, 18));
-            g2.drawString("P1 Score: " + score1, 20, 40);
-            g2.drawString("P2 Score: " + score2, getWidth() - 180, 40);
-
+            g2.drawString("P1 Score: " + score1, 20, 80);
+            g2.drawString("P2 Score: " + score2, getWidth() - 180, 80);
 
             g2.drawString("Time Left: " + timeLeft + "s", getWidth() / 2 - 50, 40);
+
+            if (paused) {
+                g2.setFont(new Font("Arial", Font.BOLD, 60));
+                g2.drawString("PAUSED", getWidth() / 2 - 140, getHeight() / 2);
+                return;
+            }
 
             if (!gameStarted) {
                 g2.setFont(new Font("Arial", Font.BOLD, 32));
@@ -134,13 +168,10 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
                 g2.drawString("⏰ Time's Up!", getWidth() / 2 - 100, getHeight() / 2 - 50);
 
                 String winnerText;
-                if (score1 > score2) {
-                    winnerText = "Player 1 wins!";
-                } else if (score2 > score1) {
-                    winnerText = "Player 2 wins!";
-                } else {
-                    winnerText = "It's a tie!";
-                }
+                if (score1 > score2) winnerText = "Player 1 wins!";
+                else if (score2 > score1) winnerText = "Player 2 wins!";
+                else winnerText = "It's a tie!";
+
                 g2.drawString(winnerText, getWidth() / 2 - 100, getHeight() / 2 + 80);
             }
 
@@ -160,10 +191,11 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        if (!initialized || gameOver) return;
+        if (!initialized || gameOver || paused) return;
+
+        long now = System.currentTimeMillis();
 
         if (gameStarted) {
-            long now = System.currentTimeMillis();
             if (now - lastTimeCheck >= 1000) {
                 timeLeft--;
                 lastTimeCheck = now;
@@ -174,25 +206,40 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
             }
         }
 
+        if (p1SpeedBoost > 0 && now >= p1BoostEnd) {
+            p1SpeedBoost = 0;
+            p1BoostEnd = 0;
+        }
+        if (p2SpeedBoost > 0 && now >= p2BoostEnd) {
+            p2SpeedBoost = 0;
+            p2BoostEnd = 0;
+        }
+
         if (gameStarted) {
             for (int i = 0; i < enemyCount; i++) {
                 enemyX[i] += enemySpeedX[i];
                 enemyY[i] += enemySpeedY[i];
+
                 if (enemyX[i] < 0 || enemyX[i] > getWidth() - ENEMY_SIZE)
                     enemySpeedX[i] = -enemySpeedX[i];
+
                 if (enemyY[i] < 0 || enemyY[i] > getHeight() - ENEMY_SIZE)
                     enemySpeedY[i] = -enemySpeedY[i];
             }
 
-            int moveSpeed = 8;
-            if (upPressed && player1Y > 0) player1Y -= moveSpeed;
-            if (downPressed && player1Y < getHeight() - player1Size) player1Y += moveSpeed;
-            if (leftPressed && player1X > 0) player1X -= moveSpeed;
-            if (rightPressed && player1X < getWidth() - player1Size) player1X += moveSpeed;
-            if (wPressed && player2Y > 0) player2Y -= moveSpeed;
-            if (sPressed && player2Y < getHeight() - player2Size) player2Y += moveSpeed;
-            if (aPressed && player2X > 0) player2X -= moveSpeed;
-            if (dPressed && player2X < getWidth() - player2Size) player2X += moveSpeed;
+            double moveSpeed = 8;
+            int p1Speed = (int)(moveSpeed + p1SpeedBoost);
+            int p2Speed = (int)(moveSpeed + p2SpeedBoost);
+
+            if (upPressed && player1Y > 0) player1Y -= p1Speed;
+            if (downPressed && player1Y < getHeight() - player1Size) player1Y += p1Speed;
+            if (leftPressed && player1X > 0) player1X -= p1Speed;
+            if (rightPressed && player1X < getWidth() - player1Size) player1X += p1Speed;
+
+            if (wPressed && player2Y > 0) player2Y -= p2Speed;
+            if (sPressed && player2Y < getHeight() - player2Size) player2Y += p2Speed;
+            if (aPressed && player2X > 0) player2X -= p2Speed;
+            if (dPressed && player2X < getWidth() - player2Size) player2X += p2Speed;
 
             Rectangle p1Rect = new Rectangle(player1X, player1Y, player1Size, player1Size);
             Rectangle p2Rect = new Rectangle(player2X, player2Y, player2Size, player2Size);
@@ -241,6 +288,29 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         }
 
         int totalAfter = score1 + score2;
+
+        int milestoneNow = totalAfter / 5;
+        if (milestoneNow > lastMilestone && milestoneNow > 0) {
+            lastMilestone = milestoneNow;
+            respawnStar();
+            starActive = true;
+        }
+
+        if (starActive) {
+            Rectangle starRect = new Rectangle(starX, starY, STAR_SIZE, STAR_SIZE);
+
+            if (p1Rect.intersects(starRect)) {
+                p1SpeedBoost += 9;
+                p1BoostEnd = System.currentTimeMillis() + 5000;
+                starActive = false;
+            }
+            if (p2Rect.intersects(starRect)) {
+                p2SpeedBoost += 9;
+                p2BoostEnd = System.currentTimeMillis() + 5000;
+                starActive = false;
+            }
+        }
+
         if (totalAfter / 5 > totalBefore / 5 && enemyCount < MAX_ENEMIES) {
             spawnNewEnemy();
         }
@@ -261,27 +331,40 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         itemY = rand.nextInt(Math.max(1, getHeight() - ITEM_SIZE));
     }
 
+    private void respawnStar() {
+        starX = rand.nextInt(Math.max(1, getWidth() - STAR_SIZE));
+        starY = rand.nextInt(Math.max(1, getHeight() - STAR_SIZE));
+    }
+
     private void spawnNewEnemy() {
         int centerX = getWidth() / 2;
         int centerY = getHeight() / 2;
         int distance = 250 + rand.nextInt(250);
         int angle = rand.nextInt(360);
-        enemyX[enemyCount] = centerX + (int) (Math.cos(Math.toRadians(angle)) * distance);
-        enemyY[enemyCount] = centerY + (int) (Math.sin(Math.toRadians(angle)) * distance);
-        enemySpeedX[enemyCount] = rand.nextInt(3) + 1 + 3; 
-        enemySpeedY[enemyCount] = rand.nextInt(3) + 1 + 3;
+        enemyX[enemyCount] = centerX + (int)(Math.cos(Math.toRadians(angle)) * distance);
+        enemyY[enemyCount] = centerY + (int)(Math.sin(Math.toRadians(angle)) * distance);
+        enemySpeedX[enemyCount] = rand.nextInt(3) + 4;
+        enemySpeedY[enemyCount] = rand.nextInt(3) + 4;
         enemyCount++;
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
+
         if (!gameStarted && !gameOver) {
             gameStarted = true;
             lastTimeCheck = System.currentTimeMillis();
         }
 
-        if (!gameOver) {
+        if (code == KeyEvent.VK_ESCAPE && !gameOver) {
+            paused = !paused;
+            repaint();
+            return;
+        }
+
+        if (!gameOver && !paused) {
+
             if (code == KeyEvent.VK_UP) upPressed = true;
             if (code == KeyEvent.VK_DOWN) downPressed = true;
             if (code == KeyEvent.VK_LEFT) leftPressed = true;
@@ -291,6 +374,7 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
             if (code == KeyEvent.VK_S) sPressed = true;
             if (code == KeyEvent.VK_A) aPressed = true;
             if (code == KeyEvent.VK_D) dPressed = true;
+
         } else if (code == KeyEvent.VK_R) {
             resetGame();
         }
@@ -320,12 +404,34 @@ public class MiniAdventureStickman extends JPanel implements ActionListener, Key
         enemyCount = 3;
         gameOver = false;
         gameStarted = false;
+        paused = false;
         timeLeft = 120;
         lastTimeCheck = System.currentTimeMillis();
+
+        p1SpeedBoost = 0;
+        p2SpeedBoost = 0;
+        p1BoostEnd = 0;
+        p2BoostEnd = 0;
+        lastMilestone = 0;
+        starActive = false;
+
         centerObjects();
         timer.start();
         repaint();
     }
+
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        if (pauseButton.contains(e.getPoint()) && !gameOver) {
+            paused = !paused;
+            repaint();
+        }
+    }
+
+    @Override public void mousePressed(MouseEvent e) {}
+    @Override public void mouseReleased(MouseEvent e) {}
+    @Override public void mouseEntered(MouseEvent e) {}
+    @Override public void mouseExited(MouseEvent e) {}
 
     public static void main(String[] args) {
         JFrame frame = new JFrame("Mini Adventure Circles");
